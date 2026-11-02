@@ -1,0 +1,15 @@
+# ShipTact-managed project policy overrides.
+{
+  "verification": {
+    "authoritative_ci": [
+      {
+        "name": "Swift 6.0.3 compatibility",
+        "workflow": "CI"
+      },
+      {
+        "name": "Build & selftest",
+        "workflow": "CI"
+      }
+    ]
+  }
+}

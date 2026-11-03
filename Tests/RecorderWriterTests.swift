@@ -11,6 +11,7 @@ enum RecorderWriterTests {
         let finished = DispatchSemaphore(value: 0)
         Task.detached {
             do {
+                try await checkAudioOnly(suite)
                 try await check(suite)
                 try await check(suite, delayedVideo: true)
                 try await check(suite, delayedVideo: true, capturesAudio: false)
@@ -28,6 +29,79 @@ enum RecorderWriterTests {
         }
         suite.expect(finished.wait(timeout: .now() + 90) == .success,
                      "recorder writer scenarios finish within their bounded fixture deadline")
+    }
+
+    private static func checkAudioOnly(_ suite: TestSuite) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for sources in [(true, false), (false, true), (true, true)] {
+            let url = root.appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension(sources.0 && sources.1 ? "mov" : "m4a")
+            let clock = RecorderPauseClock()
+            guard let writer = RecorderWriter(url: url, pixelSize: .zero, audioOnly: true,
+                frameRate: 60, capturesSystemAudio: sources.0, capturesMicrophone: sources.1,
+                pauseClock: clock) else {
+                suite.expect(false, "audio-only writer prepares without video dimensions")
+                continue
+            }
+            suite.expect(writer.start(), "audio-only writer starts")
+            writer.beginSession(at: time(100))
+            suite.expect(!writer.hasRequiredMedia, "an empty writer cannot succeed")
+            for index in 0..<100 {
+                if index == 40 { _ = clock.pause(at: 100.4); _ = clock.resume(at: 100.9) }
+                let source = 100 + Double(index) / 100 + (index >= 40 ? 0.5 : 0)
+                let sample = RecorderSampleTimingTests.audio(count: 480, time: time(source))
+                // Silent samples are still real media. No video samples are supplied.
+                if sources.0 { try await feed(sample, kind: .systemAudio, to: writer) }
+                if sources.1 { try await feed(sample, kind: .microphone, to: writer) }
+            }
+            let finished = await writer.finish(at: time(101.5))
+            suite.expect(finished, "silent audio-only recording finalizes")
+            suite.expect(writer.videoFrameCount == 0, "audio-only does not encode video")
+            guard finished else { continue }
+            let asset = AVURLAsset(url: url)
+            let tracks = try await asset.load(.tracks)
+            let named = await RecorderAudioSource.tracks(in: asset)
+            let expectedSources: Set<RecorderAudioSource> = Set(
+                (sources.0 ? [RecorderAudioSource.system] : [])
+                    + (sources.1 ? [RecorderAudioSource.microphone] : []))
+            suite.expect(Set(named.keys) == expectedSources, "audio track metadata identifies each chosen source")
+            suite.expect(tracks.count == (sources.0 && sources.1 ? 2 : 1)
+                && tracks.allSatisfy { $0.mediaType == .audio }, "output has only the selected audio tracks")
+            for track in tracks {
+                let range = try await track.load(.timeRange)
+                suite.expect(abs(range.end.seconds - 1) < 0.05, "audio duration excludes pause")
+                let reader = try AVAssetReader(asset: asset)
+                let output = AVAssetReaderTrackOutput(track: track, outputSettings: [AVFormatIDKey: kAudioFormatLinearPCM])
+                reader.add(output)
+                suite.expect(reader.startReading(), "each audio track can be opened independently")
+                var count = 0
+                while output.copyNextSampleBuffer() != nil { count += 1 }
+                suite.expect(count > 0 && reader.status == .completed, "each audio track decodes independently")
+            }
+        }
+        let invalid = RecorderWriter(url: root.appendingPathComponent("missing/out.m4a"),
+            pixelSize: .zero, audioOnly: true, frameRate: 1, capturesSystemAudio: true,
+            capturesMicrophone: false, pauseClock: RecorderPauseClock())
+        suite.expect(invalid?.start() != true, "an unwritable output cannot start successfully")
+        suite.expect(invalid == nil || invalid?.didFail == true,
+                     "write failure remains distinct from a source delivering no media")
+        suite.expect(RecorderWriter(url: root.appendingPathComponent("none.m4a"), pixelSize: .zero,
+            audioOnly: true, frameRate: 1, capturesSystemAudio: false, capturesMicrophone: false,
+            pauseClock: RecorderPauseClock()) == nil, "audio-only writer rejects a take without sources")
+        for missingMicrophone in [false, true] {
+            let url = root.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
+            let writer = RecorderWriter(url: url, pixelSize: .zero, audioOnly: true, frameRate: 60,
+                capturesSystemAudio: true, capturesMicrophone: missingMicrophone, pauseClock: RecorderPauseClock())!
+            suite.expect(writer.start(), "empty-source fixture starts")
+            writer.beginSession(at: time(100))
+            if missingMicrophone {
+                try await feed(RecorderSampleTimingTests.audio(count: 480, time: time(100)), kind: .systemAudio, to: writer)
+            }
+            let finished = await writer.finish(at: time(101))
+            suite.expect(!finished, "no buffers from a requested source fails instead of silent success")
+        }
     }
 
     private static func checkAudioNormalization(_ suite: TestSuite) {

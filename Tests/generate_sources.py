@@ -97,7 +97,7 @@ def main():
     write("RecorderPreparation.swift", "import Foundation\nextension RecorderPreparationTests {\n"
           + "final class Service: Fixture {\n"
           + "".join(declaration(recorder, prefix).replace("private func", "func", 1)
-                    for prefix in ["    private func beginRecording(", "    private func pendingStartIsAuthorized(",
+                    for prefix in ["    func recordAudio(", "    private func beginRecording(", "    private func pendingStartIsAuthorized(",
                                    "    private func invalidatePendingStart()", "    var hasActiveCapture:",
                                    "    func stopOrCancelActiveCapture()", "    func prepareForSelection()"])
           + "}\n}\n")

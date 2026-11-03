@@ -18,6 +18,8 @@ final class RecorderTakeStore: @unchecked Sendable {
         let id: UUID
         let folder: URL
 
+        var audioURL: URL { folder.appendingPathComponent("take.m4a") }
+        var mediaURL: URL { FileManager.default.fileExists(atPath: audioURL.path) ? audioURL : videoURL }
         var videoURL: URL { folder.appendingPathComponent(RecorderSupport.takeVideoName) }
         var pointerURL: URL { folder.appendingPathComponent(RecorderSupport.takePointerName) }
         var typingURL: URL { folder.appendingPathComponent(RecorderSupport.takeTypingName) }
@@ -163,7 +165,7 @@ final class RecorderTakeStore: @unchecked Sendable {
     /// Turns a finished take into the file the person keeps. The take stays
     /// intact if either step fails, so the editor can still recover it.
     func saveDirectly(_ take: Take, to destination: URL) throws {
-        try manager.copyItem(at: take.videoURL, to: destination)
+        try manager.copyItem(at: take.mediaURL, to: destination)
         do {
             try manager.removeItem(at: take.folder)
         } catch {
@@ -185,7 +187,7 @@ final class RecorderTakeStore: @unchecked Sendable {
     /// When a take stopped being written, read from the master itself so no
     /// extra bookkeeping file has to stay in sync with reality.
     func finishedAt(_ take: Take) -> Date? {
-        let values = try? take.videoURL.resourceValues(forKeys: [.contentModificationDateKey])
+        let values = try? take.mediaURL.resourceValues(forKeys: [.contentModificationDateKey])
         return values?.contentModificationDate
     }
 

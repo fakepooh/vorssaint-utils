@@ -14,6 +14,7 @@ enum RecorderFailure: Equatable {
     case streamFailed
     case writerFailed
     case microphoneUnavailable
+    case audioDeviceChanged
     case noMedia
     case diskFull
 }

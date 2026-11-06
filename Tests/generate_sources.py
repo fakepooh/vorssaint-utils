@@ -124,6 +124,7 @@ def main():
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"
           + declaration("Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift", "    func stop() async")
+          + declaration("Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift", "    private func rebuildPipelineIfChanged()").replace("private func", "func", 1)
           + "}\n}\n")
     tap = "Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift"
     write("RecorderSystemAudioTrust.swift", "import Accelerate\nimport AVFoundation\nimport Darwin\n"

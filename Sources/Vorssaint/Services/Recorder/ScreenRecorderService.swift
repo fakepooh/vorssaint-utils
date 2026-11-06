@@ -113,6 +113,13 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             self?.appendTapSample(sampleBuffer)
         }
         tap?.onReaderLost = { [weak self] in self?.tapReaderLost.raise() }
+        if isAudioOnly {
+            tap?.onDeviceChange = { [weak self] in
+                DispatchQueue.main.async { [weak self] in
+                    self?.onUnexpectedStop?(.audioDeviceChanged)
+                }
+            }
+        }
         if region != nil || capturesSystemAudio {
             if let failure = await engine.start(region: region,
                                                 frameRate: frameRate,
@@ -608,7 +615,8 @@ final class ScreenRecorderService: ObservableObject {
             // The stream ended without being asked to. Whatever was recorded
             // is still worth keeping, so this closes the file rather than
             // throwing the take away.
-            self.stop()
+            self.stop(reason: session.isAudioOnly && failure == .audioDeviceChanged
+                ? self.strings.audioDeviceChangedHUD : nil)
         }
         session.onMicrophoneUnavailable = { [weak self] in
             guard let self else { return }
@@ -855,6 +863,8 @@ final class ScreenRecorderService: ObservableObject {
             QuickToolHUD.show(icon: "mic.slash", message: strings.microphoneUnavailableHUD)
         case .noMedia:
             QuickToolHUD.show(icon: "waveform", message: strings.audioNoMedia)
+        case .audioDeviceChanged:
+            QuickToolHUD.show(icon: "speaker.wave.2", message: strings.audioDeviceChangedHUD)
         case .diskFull:
             reportNoSpace()
         case .noContent, .streamFailed, .writerFailed:

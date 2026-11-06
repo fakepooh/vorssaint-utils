@@ -76,6 +76,11 @@ final class RecorderWriter {
             && (systemAudioInput != nil || microphoneInput != nil)
     }
 
+    private var hasAnyMedia: Bool {
+        if videoInput != nil { return videoFrameCount > 0 }
+        return systemAudioBufferCount > 0 || microphoneBufferCount > 0
+    }
+
     var url: URL { writer.outputURL }
 
     init?(url: URL,
@@ -390,7 +395,7 @@ final class RecorderWriter {
     /// person pressed stop, otherwise a recording that ended on a still screen
     /// would be as short as its last change instead of as long as it felt.
     func finish(at wallClockEnd: CMTime) async -> Bool {
-        guard started, !failed, hasRequiredMedia else {
+        guard started, !failed, hasAnyMedia else {
             writer.cancelWriting()
             return false
         }

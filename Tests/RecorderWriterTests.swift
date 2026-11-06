@@ -104,8 +104,25 @@ enum RecorderWriterTests {
             if missingMicrophone {
                 try await feed(RecorderSampleTimingTests.audio(count: 480, time: time(100)), kind: .systemAudio, to: writer)
             }
+            suite.expect(!writer.hasRequiredMedia, "a missing selected source remains observable")
             let finished = await writer.finish(at: time(101))
-            suite.expect(!finished, "no buffers from a requested source fails instead of silent success")
+            suite.expect(finished == missingMicrophone,
+                         "available partial audio is preserved while a completely empty take fails")
+            if finished {
+                let asset = AVURLAsset(url: url)
+                let tracks = try await asset.loadTracks(withMediaType: .audio)
+                let named = await RecorderAudioSource.tracks(in: asset)
+                suite.expect(tracks.count == 1 && Set(named.keys) == [.system],
+                             "partial audio keeps the available source identity without an empty track")
+                let reader = try AVAssetReader(asset: asset)
+                let output = AVAssetReaderTrackOutput(track: tracks[0],
+                    outputSettings: [AVFormatIDKey: kAudioFormatLinearPCM])
+                reader.add(output)
+                suite.expect(reader.startReading(), "partial audio can be opened")
+                var buffers = 0
+                while output.copyNextSampleBuffer() != nil { buffers += 1 }
+                suite.expect(buffers > 0 && reader.status == .completed, "partial audio decodes")
+            }
         }
     }
 

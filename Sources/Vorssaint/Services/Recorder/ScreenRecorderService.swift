@@ -241,7 +241,9 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         writerQueue.sync {}
         let hasMedia = writer.hasRequiredMedia
         let written = await writer.finish(at: end)
-        if !written {
+        if written, isAudioOnly, !hasMedia {
+            finalizationFailure = .noMedia
+        } else if !written {
             finalizationFailure = isAudioOnly && !hasMedia && !writer.didFail ? .noMedia : .writerFailed
         }
         if written, let track, !track.isEmpty {
@@ -772,7 +774,8 @@ final class ScreenRecorderService: ObservableObject {
             if cancelsAudioStartup {
                 RecorderTakeStore.shared.delete(session.take)
             } else if written {
-                self.deliver(session.take, audioOnly: session.isAudioOnly, reason: reason)
+                let warning = session.finalizationFailure == .noMedia ? self.strings.audioNoMedia : nil
+                self.deliver(session.take, audioOnly: session.isAudioOnly, reason: reason ?? warning)
             } else {
                 RecorderTakeStore.shared.delete(session.take)
                 self.report(session.finalizationFailure ?? .writerFailed)

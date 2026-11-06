@@ -24,7 +24,10 @@ final class RecorderSelectionAudioOptions: ObservableObject {
 /// One recording, from the first frame to the closed file. Everything that
 /// only exists while recording lives here and dies with it, so the service
 /// itself keeps nothing running between recordings.
-private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
+// Capture callbacks cross queues. Writer access is serialized by writerQueue;
+// startup/stop ownership and audio selection use their gates/locks. Sources are
+// stopped and drained before finalization; UI samplers run on the main actor.
+private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate, @unchecked Sendable {
     let take: RecorderTakeStore.Take
     let region: RecorderSupport.Region?
     var isAudioOnly: Bool { region == nil }

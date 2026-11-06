@@ -35,9 +35,10 @@ enum RecorderWriterTests {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        for sources in [(true, false), (false, true), (true, true)] {
+        for sources in [(true, false, 0.0), (false, true, 0.0), (true, true, 0.0),
+                        (true, false, 0.5), (false, true, 0.5), (true, true, 0.5)] {
             let url = root.appendingPathComponent(UUID().uuidString)
-                .appendingPathExtension(sources.0 && sources.1 ? "mov" : "m4a")
+                .appendingPathExtension("mov")
             let clock = RecorderPauseClock()
             guard let writer = RecorderWriter(url: url, pixelSize: .zero, audioOnly: true,
                 frameRate: 60, capturesSystemAudio: sources.0, capturesMicrophone: sources.1,
@@ -49,14 +50,17 @@ enum RecorderWriterTests {
             writer.beginSession(at: time(100))
             suite.expect(!writer.hasRequiredMedia, "an empty writer cannot succeed")
             for index in 0..<100 {
-                if index == 40 { _ = clock.pause(at: 100.4); _ = clock.resume(at: 100.9) }
-                let source = 100 + Double(index) / 100 + (index >= 40 ? 0.5 : 0)
+                if index == 40 {
+                    _ = clock.pause(at: 100.4 + sources.2)
+                    _ = clock.resume(at: 100.9 + sources.2)
+                }
+                let source = 100 + sources.2 + Double(index) / 100 + (index >= 40 ? 0.5 : 0)
                 let sample = RecorderSampleTimingTests.audio(count: 480, time: time(source))
                 // Silent samples are still real media. No video samples are supplied.
                 if sources.0 { try await feed(sample, kind: .systemAudio, to: writer) }
                 if sources.1 { try await feed(sample, kind: .microphone, to: writer) }
             }
-            let finished = await writer.finish(at: time(101.5))
+            let finished = await writer.finish(at: time(101.5 + sources.2))
             suite.expect(finished, "silent audio-only recording finalizes")
             suite.expect(writer.videoFrameCount == 0, "audio-only does not encode video")
             guard finished else { continue }
@@ -71,7 +75,8 @@ enum RecorderWriterTests {
                 && tracks.allSatisfy { $0.mediaType == .audio }, "output has only the selected audio tracks")
             for track in tracks {
                 let range = try await track.load(.timeRange)
-                suite.expect(abs(range.end.seconds - 1) < 0.05, "audio duration excludes pause")
+                suite.expect(abs(range.end.seconds - (1 + sources.2)) < 0.05,
+                             "audio duration excludes pause and preserves delayed source timing")
                 let reader = try AVAssetReader(asset: asset)
                 let output = AVAssetReaderTrackOutput(track: track, outputSettings: [AVFormatIDKey: kAudioFormatLinearPCM])
                 reader.add(output)

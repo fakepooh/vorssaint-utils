@@ -426,7 +426,7 @@ final class ScreenRecorderService: ObservableObject {
             return
         }
         let clock = RecorderPauseClock()
-        let url = systemAudio && microphone ? take.videoURL : take.audioURL
+        let url = take.videoURL
         isPreparingRecording = true
         RecorderWriter.prepare(url: url, pixelSize: .zero, audioOnly: true, frameRate: 1,
             capturesSystemAudio: systemAudio, capturesMicrophone: microphone, pauseClock: clock) { [weak self] writer in
@@ -805,7 +805,7 @@ final class ScreenRecorderService: ObservableObject {
     }
 
     private func saveDirect(_ take: RecorderTakeStore.Take, audioOnly: Bool, reason: String?) {
-        let destination = Self.saveDestination(strings: strings, fileExtension: take.mediaURL.pathExtension)
+        let destination = Self.saveDestination(strings: strings, fileExtension: take.videoURL.pathExtension)
         do {
             try RecorderTakeStore.shared.saveDirectly(take, to: destination)
         } catch {
@@ -813,7 +813,7 @@ final class ScreenRecorderService: ObservableObject {
             QuickToolHUD.show(icon: "record.circle", message: strings.recordFailed)
             if audioOnly {
                 unsavedAudioTakes.insert(take.id)
-                NSWorkspace.shared.activateFileViewerSelecting([take.mediaURL])
+                NSWorkspace.shared.activateFileViewerSelecting([take.videoURL])
             } else {
                 openEditor(with: take)
             }

@@ -86,15 +86,12 @@ final class RecorderWriter {
           capturesMicrophone: Bool,
           pauseClock: RecorderPauseClock) {
         guard !audioOnly || capturesSystemAudio || capturesMicrophone else { return nil }
-        let singleAudioSource = audioOnly && capturesSystemAudio != capturesMicrophone
-        guard let writer = try? AVAssetWriter(outputURL: url, fileType: singleAudioSource ? .m4a : .mov)
-        else { return nil }
-        if singleAudioSource {
-            writer.metadata = (capturesSystemAudio ? RecorderAudioSource.system : .microphone).singleSourceMetadata
-        }
+        // M4A removes leading gaps before the first audio buffer. MOV retains
+        // the shared clock even when a selected source starts delivering late.
+        guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mov) else { return nil }
         // A recording that outlives a crash is worth the few extra bytes a
         // fragmented file costs.
-        if !singleAudioSource { writer.movieFragmentInterval = CMTime(seconds: 10, preferredTimescale: 600) }
+        writer.movieFragmentInterval = CMTime(seconds: 10, preferredTimescale: 600)
 
         var videoInput: AVAssetWriterInput?
         if !audioOnly {

@@ -21,26 +21,8 @@ enum RecorderAudioSource: String, CaseIterable, Hashable {
         return [item]
     }
 
-    /// M4A does not retain QuickTime per-track metadata. A single-source file
-    /// identifies that source in the container's supported iTunes comment.
-    var singleSourceMetadata: [AVMetadataItem] {
-        let item = AVMutableMetadataItem()
-        item.identifier = .iTunesMetadataUserComment
-        item.value = contentIdentifier as NSString
-        item.dataType = kCMMetadataBaseDataType_UTF8 as String
-        return [item]
-    }
-
     static func tracks(in asset: AVAsset) async -> [RecorderAudioSource: AVAssetTrack] {
         let tracks = (try? await asset.loadTracks(withMediaType: .audio)) ?? []
-        if tracks.count == 1 {
-            for item in (try? await asset.load(.metadata)) ?? [] where item.identifier == .iTunesMetadataUserComment {
-                if let value = try? await item.load(.stringValue),
-                   let source = allCases.first(where: { $0.contentIdentifier == value }) {
-                    return [source: tracks[0]]
-                }
-            }
-        }
         var result: [RecorderAudioSource: AVAssetTrack] = [:]
         var unmatched: [AVAssetTrack] = []
 

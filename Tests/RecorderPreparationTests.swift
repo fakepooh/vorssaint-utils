@@ -43,7 +43,6 @@ enum RecorderPreparationTests {
     final class RecorderTakeStore {
         struct Take: Equatable {
             let videoURL: URL
-            var audioURL: URL { videoURL.deletingPathExtension().appendingPathExtension("m4a") }
         }
         static let shared = RecorderTakeStore()
         var made: [Take] = []
